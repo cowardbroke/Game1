@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Card Game</title>
+    <style>
+        body {
+            background-image: url("background.jpg");
+            background-size: cover;
+            background-position: center;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #scoreboard {
+            text-align: center;
+            font-size: 24px;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            justify-content: center;
+            width: 90%;
+            max-width: 600px;
+        }
+
+        .card {
+            width: 100px;
+            height: 120px;
+            border-radius: 8px;
+            cursor: pointer;
+            position: relative;
+            perspective: 1000px;
+        }
+
+        .card-inner {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            transform-style: preserve-3d;
+            transition: transform 0.5s;
+        }
+
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .card-front,
+        .card-back {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            backface-visibility: hidden;
+            border-radius: 8px;
+        }
+
+        .card-back {
+            background-image: url("back.jpg");
+            background-size: cover;
+            background-position: center;
+        }
+
+        .card-front {
+            transform: rotateY(180deg);
+        }
+
+        .card-front img {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+
+        #victory-screen {
+            display: none;
+            text-align: center;
+            color: white;
+            font-size: 36px;
+            background-color: rgba(0,0,0,.5);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        #victory-screen h2 {
+            margin: 20px;
+        }
+
+        #play-again {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color:black;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        #play-again:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="scoreboard">
+        <p>Score: <span id="score">0</span></p>
+    </div>
+
+    <div id="game-board">
+        <!-- Cards will be generated here -->
+    </div>
+
+    <div id="victory-screen">
+        <h2>You Won!</h2>
+        <button id="play-again">Play Again</button>
+    </div>
+
+    <script>
+        const images = ['card1.jpg', 'card2.jpg', 'card3.jpg', 'card4.jpg', 'card5.jpg', 'card6.jpg'];
+        const cards = [...images, ...images]; // Duplicate images for pairs
+        let flippedCards = [];
+        let matchedCards = [];
+        let gameBoard = document.getElementById('game-board');
+        let score = 0;
+        let hasWon = false;
+        let victorySoundPlayed = false; // Flag to track if victory sound has been played
+
+        const victoryScreen = document.getElementById('victory-screen');
+        const scoreDisplay = document.getElementById('score');
+        const playAgainButton = document.getElementById('play-again');
+
+        // Match sound mapping based on the index of the cards
+        const matchSounds = {
+            'card1.jpg': 'match1.mp3',
+            'card2.jpg': 'match2.mp3',
+            'card3.jpg': 'match3.mp3',
+            'card4.jpg': 'match4.mp3',
+            'card5.jpg': 'match5.mp3',
+            'card6.jpg': 'match6.mp3'
+        };
+
+        function shuffleCards() {
+            for (let i = cards.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [cards[i], cards[j]] = [cards[j], cards[i]]; // Swap
+            }
+        }
+
+        function generateBoard() {
+            gameBoard.innerHTML = '';
+            cards.forEach((image, index) => {
+                const card = document.createElement('div');
+                card.classList.add('card');
+                card.dataset.index = index;
+
+                const cardInner = document.createElement('div');
+                cardInner.classList.add('card-inner');
+
+                const cardFront = document.createElement('div');
+                cardFront.classList.add('card-front');
+                const img = document.createElement('img');
+                img.src = image;
+                cardFront.appendChild(img);
+
+                const cardBack = document.createElement('div');
+                cardBack.classList.add('card-back');
+
+                cardInner.appendChild(cardFront);
+                cardInner.appendChild(cardBack);
+                card.appendChild(cardInner);
+
+                card.addEventListener('click', () => flipCard(card));
+                gameBoard.appendChild(card);
+            });
+        }
+
+        function flipCard(card) {
+            if (flippedCards.length < 2 && !card.classList.contains('flipped') && !hasWon) {
+                card.classList.add('flipped');
+                flippedCards.push(card);
+
+                // Play flip sound
+                const flipSound = new Audio('flip.mp3');
+                flipSound.play();
+
+                if (flippedCards.length === 2) {
+                    checkMatch();
+                }
+            }
+        }
+
+        function checkMatch() {
+            const [card1, card2] = flippedCards;
+            const index1 = card1.dataset.index;
+            const index2 = card2.dataset.index;
+
+            // Match only if the images match (consider their names)
+            if (cards[index1] === cards[index2]) {
+                // Cards match
+                matchedCards.push(card1, card2);
+                score += 1;
+                scoreDisplay.textContent = score;
+
+                // Play the match sound based on the card's image (only if not victory sound is playing)
+                if (!victorySoundPlayed) {
+                    const matchedSound = new Audio(matchSounds[cards[index1]]);
+                    matchedSound.play();
+                }
+
+                if (matchedCards.length === cards.length) {
+                    showVictoryScreen();
+                }
+
+                flippedCards = [];
+            } else {
+                // Cards don't match, flip them back
+                setTimeout(() => {
+                    card1.classList.remove('flipped');
+                    card2.classList.remove('flipped');
+                    flippedCards = [];
+                }, 1000);
+            }
+        }
+
+        function showVictoryScreen() {
+            hasWon = true;
+            victoryScreen.style.display = 'block';
+            const victorySound = new Audio('victory.mp3');
+            victorySound.play();
+            victorySoundPlayed = true; // Set flag to true to prevent other sounds
+        }
+
+        function restartGame() {
+            location.reload();
+        }
+
+        playAgainButton.addEventListener('click', restartGame);
+
+        shuffleCards();
+        generateBoard();
+    </script>
+
+</body>
+</html>
